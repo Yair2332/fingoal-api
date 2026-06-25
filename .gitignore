@@ -1,0 +1,9 @@
+node_modules/
+npm-debug.log*
+
+.env
+.env.local
+firebase-credentials.json
+
+.DS_Store
+Thumbs.db

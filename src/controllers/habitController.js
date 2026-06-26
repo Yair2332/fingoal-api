@@ -17,7 +17,7 @@ exports.getHabits = async (req, res) => {
   }
 };
 
-// 2. Marcar hábito como completado hoy (Actualiza racha)
+// 2. Marcar hábito como completado hoy (Actualiza racha con validación de tiempo)
 exports.completeHabit = async (req, res) => {
   try {
     const { habitId } = req.params;
@@ -29,13 +29,28 @@ exports.completeHabit = async (req, res) => {
     }
 
     const habitData = doc.data();
-    const currentStreak = parseInt(habitData.streak, 10) || 0;
-    const newStreak = habitData.completedToday ? currentStreak : (currentStreak + 1);
+    const now = Date.now();
+    const lastCompleted = habitData.lastCompletedAt || 0;
+    
+    // Convertir milisegundos a días aproximados
+    const unDiaEnMs = 24 * 60 * 60 * 1000;
+    const diasDesdeUltimoLog = (now - lastCompleted) / unDiaEnMs;
+
+    let currentStreak = parseInt(habitData.streak, 10) || 0;
+    let newStreak = currentStreak;
+
+    // Si pasó menos de un día y ya fue completado, no sumamos racha repetida en el mismo ciclo.
+    // Si pasó entre 1 y 2 días, extendemos la racha. Si pasó más de 2 días, la racha se rompió y vuelve a 1.
+    if (lastCompleted === 0 || diasDesdeUltimoLog > 2) {
+      newStreak = 1; 
+    } else if (diasDesdeUltimoLog >= 1 && diasDesdeUltimoLog <= 2) {
+      newStreak = currentStreak + 1;
+    }
 
     await habitRef.update({
       completedToday: true,
       streak: newStreak,
-      lastCompletedAt: Date.now()
+      lastCompletedAt: now
     });
 
     res.status(200).json({ id: habitId, completedToday: true, streak: newStreak });
@@ -44,7 +59,7 @@ exports.completeHabit = async (req, res) => {
   }
 };
 
-// 3. Editar datos base de un hábito
+// 3. Editar datos base de un hábito (Parcial - PATCH)
 exports.updateHabit = async (req, res) => {
   try {
     const { habitId } = req.params;
@@ -61,7 +76,7 @@ exports.updateHabit = async (req, res) => {
     if (title !== undefined) updatedData.title = title;
     if (description !== undefined) updatedData.description = description;
     if (frequency !== undefined) updatedData.frequency = frequency;
-    if (isActive !== undefined) updatedData.isActive = isActive;
+    if (isActive !== undefined) updatedData.isActive = Object.prototype.toString.call(isActive) === '[object Boolean]' ? isActive : isActive === 'true';
 
     await habitRef.update(updatedData);
     res.status(200).json({ id: habitId, ...updatedData, message: "Hábito modificado con éxito" });
@@ -84,6 +99,6 @@ exports.deleteHabit = async (req, res) => {
     await habitRef.delete();
     res.status(200).json({ id: habitId, message: "Hábito eliminado con éxito" });
   } catch (error) {
-    res.status(500).json({ error: "Error al eliminar the hábito: " + error.message });
+    res.status(500).json({ error: "Error al eliminar el hábito: " + error.message });
   }
 };

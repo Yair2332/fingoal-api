@@ -1,6 +1,6 @@
 const db = require('../config/firebase');
 
-// 1. Obtener todas las metas de un usuario
+// 1. Obtener todas las metas de un usuario 
 exports.getGoals = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -17,13 +17,14 @@ exports.getGoals = async (req, res) => {
   }
 };
 
-// 2. Registrar un aporte económico a una meta (Usa transacciones de Firestore)
+// 2. Registrar un aporte económico a una meta (Usa transacciones de Firestore) 
 exports.addContribution = async (req, res) => {
   try {
     const { goalId, userId, amount } = req.body;
 
-    if (!goalId || !userId || !amount) {
-      return res.status(400).json({ error: "Faltan campos requeridos" });
+    const parsedAmount = Number(amount);
+    if (!goalId || !userId || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: "Campos requeridos inválidos o monto debe ser mayor a 0" });
     }
 
     const goalRef = db.collection('Goal').doc(goalId);
@@ -35,8 +36,11 @@ exports.addContribution = async (req, res) => {
         throw new Error("La meta no existe");
       }
 
-      const newCurrentAmount = goalDoc.data().currentAmount + Number(amount);
-      const isCompleted = newCurrentAmount >= goalDoc.data().targetAmount;
+      const currentAmount = Number(goalDoc.data().currentAmount) || 0;
+      const targetAmount = Number(goalDoc.data().targetAmount) || 0;
+      
+      const newCurrentAmount = currentAmount + parsedAmount;
+      const isCompleted = newCurrentAmount >= targetAmount;
 
       transaction.update(goalRef, { 
         currentAmount: newCurrentAmount,
@@ -46,7 +50,7 @@ exports.addContribution = async (req, res) => {
       transaction.set(contributionRef, {
         goalId,
         userId,
-        amount: Number(amount),
+        amount: parsedAmount,
         createdAt: Date.now()
       });
     });
@@ -57,7 +61,7 @@ exports.addContribution = async (req, res) => {
   }
 };
 
-// 3. Editar una meta de ahorro
+// 3. Editar una meta de ahorro (Parcial - PATCH) 
 exports.updateGoal = async (req, res) => {
   try {
     const { goalId } = req.params;
@@ -73,8 +77,19 @@ exports.updateGoal = async (req, res) => {
     const updatedData = {};
     if (name !== undefined) updatedData.name = name;
     if (description !== undefined) updatedData.description = description;
-    if (targetAmount !== undefined) updatedData.targetAmount = Number(targetAmount);
-    if (priority !== undefined) updatedData.priority = Number(priority);
+    
+    if (targetAmount !== undefined) {
+      const parsedTarget = Number(targetAmount);
+      if (isNaN(parsedTarget)) return res.status(400).json({ error: "targetAmount debe ser un número válido" });
+      updatedData.targetAmount = parsedTarget;
+    }
+    
+    if (priority !== undefined) {
+      const parsedPriority = Number(priority);
+      if (isNaN(parsedPriority)) return res.status(400).json({ error: "priority debe ser un número válido" });
+      updatedData.priority = parsedPriority;
+    }
+    
     if (status !== undefined) updatedData.status = status;
     if (localImagePath !== undefined) updatedData.localImagePath = localImagePath;
 

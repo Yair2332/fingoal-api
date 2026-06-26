@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const goalController = require('../controllers/goalController');
 
+router.post('/', goalController.createGoal); 
 router.get('/:userId', goalController.getGoals);
 router.post('/contribution', goalController.addContribution);
 router.patch('/:goalId', goalController.updateGoal);

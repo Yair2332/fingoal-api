@@ -12,6 +12,61 @@ exports.getGoals = async (req, res) => {
   }
 };
 
+// Crear una nueva meta de ahorro
+exports.createGoal = async (req, res) => {
+  try {
+    const {
+      userId,
+      name,
+      description,
+      targetAmount,
+      priority,
+      localImagePath
+    } = req.body;
+
+    // Validaciones
+    if (!userId || !name || targetAmount === undefined) {
+      return res.status(400).json({
+        error: "userId, name y targetAmount son obligatorios"
+      });
+    }
+
+    const parsedTargetAmount = Number(targetAmount);
+    const parsedPriority = Number(priority) || 1;
+
+    if (isNaN(parsedTargetAmount) || parsedTargetAmount <= 0) {
+      return res.status(400).json({
+        error: "targetAmount debe ser un número mayor a 0"
+      });
+    }
+
+    const newGoal = {
+      userId,
+      name,
+      description: description || "",
+      targetAmount: parsedTargetAmount,
+      currentAmount: 0,
+      priority: parsedPriority,
+      status: "ACTIVE",
+      localImagePath: localImagePath || "",
+      createdAt: Date.now().toString()
+    };
+
+    const docRef = await db.collection("Goal").add(newGoal);
+
+    res.status(201).json({
+      id: docRef.id,
+      ...newGoal,
+      message: "Meta creada con éxito"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      error: "Error al crear la meta: " + error.message
+    });
+  }
+};
+
 // 2. Registrar un aporte económico a una meta (Usa transacciones de Firestore) 
 exports.addContribution = async (req, res) => {
   try {

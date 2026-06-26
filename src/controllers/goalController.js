@@ -5,15 +5,10 @@ exports.getGoals = async (req, res) => {
   try {
     const { userId } = req.params;
     const snapshot = await db.collection('Goal').where('userId', '==', userId).get();
-    
-    const goals = [];
-    snapshot.forEach(doc => {
-      goals.push({ id: doc.id, ...doc.data() });
-    });
-    
+    const goals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(goals);
   } catch (error) {
-    res.status(500).json({ error: "Error al obtener las metas: " + error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 

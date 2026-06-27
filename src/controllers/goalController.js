@@ -179,7 +179,7 @@ exports.withdrawContribution = async (req, res) => {
     }
 
     const goalRef = db.collection('Goal').doc(goalId);
-    const contributionRef = db.collection('GoalContribution').doc(); // Nuevo documento de historial
+    const contributionRef = db.collection('GoalContribution').doc(); 
 
     await db.runTransaction(async (transaction) => {
       const goalDoc = await transaction.get(goalRef);
@@ -188,19 +188,19 @@ exports.withdrawContribution = async (req, res) => {
       const currentAmount = Number(goalDoc.data().currentAmount) || 0;
       if (currentAmount < parsedAmount) throw new Error("Fondos insuficientes");
 
-      // Actualizar meta
+
       transaction.update(goalRef, { 
         currentAmount: currentAmount - parsedAmount,
-        status: "ACTIVE" // Siempre vuelve a activo si se retira dinero
+        status: "ACTIVE"
       });
 
-      // REGISTRAR EL RETIRO EN EL HISTORIAL como un monto negativo
+     
       transaction.set(contributionRef, {
         goalId,
         userId,
-        amount: -parsedAmount, // Guardamos el valor negativo para el historial
+        amount: -parsedAmount, 
         createdAt: Date.now(),
-        type: 'WITHDRAWAL' // Etiqueta útil para filtros
+        type: 'WITHDRAWAL' 
       });
     });
 

@@ -102,3 +102,28 @@ exports.deleteHabit = async (req, res) => {
     res.status(500).json({ error: "Error al eliminar el hábito: " + error.message });
   }
 };
+
+// 5. Crear un nuevo hábito
+exports.createHabit = async (req, res) => {
+  try {
+    const { userId, title, description, frequency } = req.body;
+
+    const newHabit = {
+      userId,
+      title,
+      description,
+      frequency,
+      isActive: true,
+      streak: 0,
+      completedToday: false,
+      lastCompletedAt: 0,
+      createdAt: Date.now()
+    };
+
+    const docRef = await db.collection('Habit').add(newHabit);
+    
+    res.status(201).json({ id: docRef.id, ...newHabit, message: "Hábito creado con éxito" });
+  } catch (error) {
+    res.status(500).json({ error: "Error al crear el hábito: " + error.message });
+  }
+};

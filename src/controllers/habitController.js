@@ -127,3 +127,24 @@ exports.createHabit = async (req, res) => {
     res.status(500).json({ error: "Error al crear el hábito: " + error.message });
   }
 };
+
+
+exports.toggleHabit = async (req, res) => {
+  try {
+    const { habitId } = req.params;
+    const habitRef = db.collection('Habit').doc(habitId);
+    const doc = await habitRef.get();
+    const data = doc.data();
+
+    // Invertimos el estado actual
+    const newState = !data.completedToday;
+
+    await habitRef.update({
+      completedToday: newState
+    });
+
+    res.status(200).json({ id: habitId, completedToday: newState });
+  } catch (error) {
+    res.status(500).json({ error: "Error al actualizar: " + error.message });
+  }
+};

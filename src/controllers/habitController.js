@@ -17,53 +17,14 @@ exports.getHabits = async (req, res) => {
   }
 };
 
-// 2. Marcar hábito como completado hoy (Actualiza racha con validación de tiempo)
-exports.completeHabit = async (req, res) => {
-  try {
-    const { habitId } = req.params;
-    const habitRef = db.collection('Habit').doc(habitId);
-    const doc = await habitRef.get();
 
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Hábito no encontrado" });
-    }
-
-    const habitData = doc.data();
-    const now = Date.now();
-    const lastCompleted = habitData.lastCompletedAt || 0;
-    
-    // Convertir milisegundos a días aproximados
-    const unDiaEnMs = 24 * 60 * 60 * 1000;
-    const diasDesdeUltimoLog = (now - lastCompleted) / unDiaEnMs;
-
-    let currentStreak = parseInt(habitData.streak, 10) || 0;
-    let newStreak = currentStreak;
-
-    // Si pasó menos de un día y ya fue completado, no sumamos racha repetida en el mismo ciclo.
-    // Si pasó entre 1 y 2 días, extendemos la racha. Si pasó más de 2 días, la racha se rompió y vuelve a 1.
-    if (lastCompleted === 0 || diasDesdeUltimoLog > 2) {
-      newStreak = 1; 
-    } else if (diasDesdeUltimoLog >= 1 && diasDesdeUltimoLog <= 2) {
-      newStreak = currentStreak + 1;
-    }
-
-    await habitRef.update({
-      completedToday: true,
-      streak: newStreak,
-      lastCompletedAt: now
-    });
-
-    res.status(200).json({ id: habitId, completedToday: true, streak: newStreak });
-  } catch (error) {
-    res.status(500).json({ error: "Error al actualizar el hábito: " + error.message });
-  }
-};
 
 // 3. Editar datos base de un hábito (Parcial - PATCH)
 exports.updateHabit = async (req, res) => {
   try {
     const { habitId } = req.params;
-    const { title, description, frequency, isActive } = req.body;
+    console.log("DEBUG: Intentando actualizar ID: ", habitId);
+    console.log("DEBUG: Datos recibidos en body: ", req.body);
     
     const habitRef = db.collection('Habit').doc(habitId);
     const doc = await habitRef.get();
@@ -134,17 +95,47 @@ exports.toggleHabit = async (req, res) => {
     const { habitId } = req.params;
     const habitRef = db.collection('Habit').doc(habitId);
     const doc = await habitRef.get();
-    const data = doc.data();
 
-    // Invertimos el estado actual
-    const newState = !data.completedToday;
+    if (!doc.exists) return res.status(404).json({ error: "Hábito no encontrado" });
 
-    await habitRef.update({
-      completedToday: newState
-    });
+    const habitData = doc.data();
+    const isCurrentlyCompleted = habitData.completedToday;
 
-    res.status(200).json({ id: habitId, completedToday: newState });
+    if (!isCurrentlyCompleted) {
+      // --- LÓGICA DE COMPLETAR (MARCAR COMO TRUE) ---
+      const now = Date.now();
+      const lastCompleted = habitData.lastCompletedAt || 0;
+      const unDiaEnMs = 24 * 60 * 60 * 1000;
+      const diasDesdeUltimoLog = (now - lastCompleted) / unDiaEnMs;
+
+      let currentStreak = parseInt(habitData.streak, 10) || 0;
+      let newStreak = currentStreak;
+
+      // Si pasó menos de un día y ya fue completado, no sumamos racha.
+      // Si pasó entre 1 y 2 días, extendemos. Más de 2 días, reiniciamos.
+      if (lastCompleted === 0 || diasDesdeUltimoLog > 2) {
+        newStreak = 1;
+      } else if (diasDesdeUltimoLog >= 1 && diasDesdeUltimoLog <= 2) {
+        newStreak = currentStreak + 1;
+      }
+
+      await habitRef.update({
+        completedToday: true,
+        streak: newStreak,
+        lastCompletedAt: now
+      });
+      res.status(200).json({ id: habitId, completedToday: true, streak: newStreak });
+
+    } else {
+      // --- LÓGICA DE DESMARCAR (MARCAR COMO FALSE) ---
+      // Aquí podrías decidir si quieres revertir la racha o simplemente poner en false
+      await habitRef.update({
+        completedToday: false
+        // Opcional: Podrías revertir lastCompletedAt si guardas el valor anterior
+      });
+      res.status(200).json({ id: habitId, completedToday: false, streak: habitData.streak });
+    }
   } catch (error) {
-    res.status(500).json({ error: "Error al actualizar: " + error.message });
+    res.status(500).json({ error: "Error al alternar el hábito: " + error.message });
   }
 };

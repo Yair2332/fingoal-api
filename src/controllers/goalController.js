@@ -167,3 +167,36 @@ exports.deleteGoal = async (req, res) => {
     res.status(500).json({ error: "Error al eliminar la meta: " + error.message });
   }
 };
+
+
+exports.withdrawContribution = async (req, res) => {
+  try {
+    const { goalId, userId, amount } = req.body;
+    const parsedAmount = Number(amount);
+
+    if (!goalId || !userId || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: "Datos inválidos" });
+    }
+
+    const goalRef = db.collection('Goal').doc(goalId);
+    
+    await db.runTransaction(async (transaction) => {
+      const goalDoc = await transaction.get(goalRef);
+      if (!goalDoc.exists) throw new Error("La meta no existe");
+
+      const currentAmount = Number(goalDoc.data().currentAmount) || 0;
+      
+   
+      if (currentAmount < parsedAmount) throw new Error("Fondos insuficientes");
+
+      transaction.update(goalRef, { 
+        currentAmount: currentAmount - parsedAmount,
+        status: "ACTIVE"
+      });
+    });
+
+    res.status(200).json({ message: "Retiro exitoso" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

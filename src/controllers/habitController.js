@@ -1,15 +1,36 @@
 const db = require('../config/firebase');
 
-// 1. Obtener hábitos de un usuario
 exports.getHabits = async (req, res) => {
   try {
     const { userId } = req.params;
     const snapshot = await db.collection('Habit').where('userId', '==', userId).get();
     
+    const now = new Date();
+    const todayStr = now.toDateString(); // Formato: "Sat Jun 27 2026"
+    
     const habits = [];
+    
+    // Usamos un array de promesas para poder hacer los updates si es necesario
+    const updatePromises = [];
+
     snapshot.forEach(doc => {
-      habits.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      const lastCompleted = data.lastCompletedAt ? new Date(data.lastCompletedAt) : null;
+      
+      // Si estaba completado pero la última vez fue un día distinto al de hoy
+      if (data.completedToday && lastCompleted && lastCompleted.toDateString() !== todayStr) {
+        // Marcamos como falso en la base de datos
+        updatePromises.push(
+          db.collection('Habit').doc(doc.id).update({ completedToday: false })
+        );
+        data.completedToday = false; // Actualizamos el objeto local para la respuesta
+      }
+      
+      habits.push({ id: doc.id, ...data });
     });
+
+    // Esperamos a que los reseteos en la DB se guarden
+    await Promise.all(updatePromises);
     
     res.status(200).json(habits);
   } catch (error) {
@@ -124,7 +145,7 @@ exports.toggleHabit = async (req, res) => {
       res.status(200).json({ completedToday: true, streak: newStreak });
     } else {
       // --- LÓGICA DE DESMARCAR ---
-      // Si desmarca hoy, deberíamos volver al estado anterior (o dejarlo en 0 streak si fue el único día)
+      // Si desmarca hoy, deberíamos volver al estado anterior 
       await habitRef.update({ completedToday: false });
       res.status(200).json({ completedToday: false, streak: data.streak });
     }

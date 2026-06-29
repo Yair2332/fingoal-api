@@ -44,8 +44,8 @@ exports.getHabits = async (req, res) => {
 exports.updateHabit = async (req, res) => {
   try {
     const { habitId } = req.params;
-    console.log("DEBUG: Intentando actualizar ID: ", habitId);
-    console.log("DEBUG: Datos recibidos en body: ", req.body);
+    // --- CORRECCIÓN AQUÍ ---
+    const { title, description, frequency, isActive } = req.body; 
     
     const habitRef = db.collection('Habit').doc(habitId);
     const doc = await habitRef.get();
@@ -58,7 +58,9 @@ exports.updateHabit = async (req, res) => {
     if (title !== undefined) updatedData.title = title;
     if (description !== undefined) updatedData.description = description;
     if (frequency !== undefined) updatedData.frequency = frequency;
-    if (isActive !== undefined) updatedData.isActive = Object.prototype.toString.call(isActive) === '[object Boolean]' ? isActive : isActive === 'true';
+    if (isActive !== undefined) {
+        updatedData.isActive = typeof isActive === 'boolean' ? isActive : (isActive === 'true');
+    }
 
     await habitRef.update(updatedData);
     res.status(200).json({ id: habitId, ...updatedData, message: "Hábito modificado con éxito" });
@@ -66,6 +68,7 @@ exports.updateHabit = async (req, res) => {
     res.status(500).json({ error: "Error al editar el hábito: " + error.message });
   }
 };
+
 
 // 4. Eliminar un hábito
 exports.deleteHabit = async (req, res) => {

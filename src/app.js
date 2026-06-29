@@ -12,6 +12,7 @@ app.use(express.json());
 app.use('/api/transactions', require('./routes/transactionRoutes'));
 app.use('/api/habits', require('./routes/habitRoutes'));
 app.use('/api/goals', require('./routes/goalRoutes'));
+app.use('/api/auth', require('./routes/authRoutes'));
 
 // Manejo básico de rutas no encontradas
 app.use((req, res) => {

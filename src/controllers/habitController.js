@@ -119,10 +119,12 @@ exports.toggleHabit = async (req, res) => {
     const { habitId } = req.params;
     const habitRef = db.collection('Habit').doc(habitId);
     const doc = await habitRef.get();
+    
     if (!doc.exists) return res.status(404).json({ error: "Hábito no encontrado" });
 
     const data = doc.data();
     const now = new Date();
+    
     // Normalizamos a medianoche para comparar solo fechas
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const lastCompleted = data.lastCompletedAt ? new Date(data.lastCompletedAt) : null;
@@ -130,27 +132,43 @@ exports.toggleHabit = async (req, res) => {
 
     if (!data.completedToday) {
       // --- LÓGICA DE MARCAR ---
-      let newStreak = data.streak || 0;
-      
+      let currentStreak = data.streak || 0;
+      let newStreak = currentStreak;
+
       if (!lastCompletedDate) {
         newStreak = 1;
       } else {
         const diffDays = (today - lastCompletedDate) / (1000 * 60 * 60 * 24);
+        
         if (diffDays === 1) {
-          newStreak += 1; // Ayer lo completó, racha suma
+          newStreak = currentStreak + 1;
         } else if (diffDays > 1) {
-          newStreak = 1; // Pasaron más de 24h desde el último día, se rompió
+          newStreak = 1; // Se rompió la racha, empezamos de 1
         }
-        // Si diffDays === 0, ya fue completado hoy, no hacemos nada extra
+        // Si diffDays === 0, ya estaba marcado, no hacemos nada
       }
 
-      await habitRef.update({ completedToday: true, streak: newStreak, lastCompletedAt: now.getTime() });
+      await habitRef.update({ 
+        completedToday: true, 
+        streak: newStreak, 
+        previousStreak: currentStreak, // Guardamos el estado anterior antes de modificar
+        lastCompletedAt: now.getTime() 
+      });
+
       res.status(200).json({ completedToday: true, streak: newStreak });
+      
     } else {
       // --- LÓGICA DE DESMARCAR ---
-      // Si desmarca hoy, deberíamos volver al estado anterior 
-      await habitRef.update({ completedToday: false });
-      res.status(200).json({ completedToday: false, streak: data.streak });
+      // Recuperamos el valor que guardamos antes de la última suma
+      const restoredStreak = data.previousStreak || 0;
+      
+      await habitRef.update({ 
+        completedToday: false, 
+        streak: restoredStreak 
+        // No borramos lastCompletedAt para no perder el contexto de cuándo fue la última vez
+      });
+
+      res.status(200).json({ completedToday: false, streak: restoredStreak });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });

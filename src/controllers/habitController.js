@@ -113,7 +113,6 @@ exports.createHabit = async (req, res) => {
   }
 };
 
-
 exports.toggleHabit = async (req, res) => {
   try {
     const { habitId } = req.params;
@@ -135,7 +134,7 @@ exports.toggleHabit = async (req, res) => {
       let currentStreak = data.streak || 0;
       let newStreak = currentStreak;
 
-      if (!lastCompletedDate) {
+      if (!lastCompletedDate || data.lastCompletedAt === 0) {
         newStreak = 1;
       } else {
         const diffDays = (today - lastCompletedDate) / (1000 * 60 * 60 * 24);
@@ -144,8 +143,14 @@ exports.toggleHabit = async (req, res) => {
           newStreak = currentStreak + 1;
         } else if (diffDays > 1) {
           newStreak = 1; // Se rompió la racha, empezamos de 1
+        } else if (diffDays === 0) {
+          // --- SOLUCCIÓN AL BUG ---
+          // Si es 0 significa que se destildó y se volvió a tildar HOY.
+          // Si la racha quedó en 0 por el destilde, al volver a tildar hoy tiene que ser mínimo 1.
+          if (currentStreak === 0) {
+            newStreak = 1;
+          }
         }
-        // Si diffDays === 0, ya estaba marcado, no hacemos nada
       }
 
       await habitRef.update({ 
@@ -159,13 +164,13 @@ exports.toggleHabit = async (req, res) => {
       
     } else {
       // --- LÓGICA DE DESMARCAR ---
-      // Recuperamos el valor que guardamos antes de la última suma
       const restoredStreak = data.previousStreak || 0;
       
       await habitRef.update({ 
         completedToday: false, 
-        streak: restoredStreak 
-        // No borramos lastCompletedAt para no perder el contexto de cuándo fue la última vez
+        streak: restoredStreak,
+        // Si la racha vuelve a 0, reseteamos la fecha para que no interfiera en el próximo tilde
+        lastCompletedAt: restoredStreak === 0 ? 0 : data.lastCompletedAt
       });
 
       res.status(200).json({ completedToday: false, streak: restoredStreak });

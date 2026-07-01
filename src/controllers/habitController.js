@@ -1,13 +1,11 @@
 const db = require('../config/firebase');
 
-// Utilidad para comparar fechas
+// UTILIDAD CORREGIDA: Compara solo año, mes y día, ignorando la hora/timezone.
 const isSameDay = (timestamp1, timestamp2) => {
-    if (!timestamp1) return false;
+    if (!timestamp1 || timestamp1 === 0) return false;
     const d1 = new Date(timestamp1);
     const d2 = new Date(timestamp2);
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+    return d1.toDateString() === d2.toDateString();
 };
 
 // 1. Obtener hábitos (con estado calculado al vuelo)
@@ -20,7 +18,7 @@ exports.getHabits = async (req, res) => {
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Determinamos si está completado hoy comparando la fecha, no el booleano
+            // El servidor recalcula el estado basado en el tiempo actual al momento de la petición
             const completedToday = isSameDay(data.lastCompletedAt, now);
             habits.push({ id: doc.id, ...data, completedToday });
         });
@@ -42,10 +40,9 @@ exports.toggleHabit = async (req, res) => {
 
         const data = doc.data();
         const now = new Date();
-        const lastCompleted = data.lastCompletedAt ? new Date(data.lastCompletedAt) : null;
         
-        // Verificamos si ya estaba completado hoy
-        const wasCompletedToday = isSameDay(lastCompleted, now);
+        // Verificamos si estaba completado según la fecha actual
+        const wasCompletedToday = isSameDay(data.lastCompletedAt, now);
 
         let newCompletedToday, newStreak;
 
@@ -53,13 +50,14 @@ exports.toggleHabit = async (req, res) => {
             // ACTIVAR
             newCompletedToday = true;
             
-            // Lógica de racha: Si el último fue ayer, suma. Si fue hace más, reinicia a 1.
             const yesterday = new Date(now);
             yesterday.setDate(now.getDate() - 1);
             
-            if (lastCompleted && isSameDay(lastCompleted, yesterday)) {
+            // Si el último completado fue ayer, incrementamos racha
+            if (data.lastCompletedAt && isSameDay(data.lastCompletedAt, yesterday)) {
                 newStreak = (data.streak || 0) + 1;
             } else {
+                // Si fue hace más de un día, reiniciamos racha a 1
                 newStreak = 1;
             }
         } else {
@@ -68,12 +66,14 @@ exports.toggleHabit = async (req, res) => {
             newStreak = Math.max(0, (data.streak || 0) - 1);
         }
 
-        await habitRef.update({ 
+        // Si desactivamos, lastCompletedAt va a 0 para asegurar que isSameDay siempre de false
+        const updatePayload = { 
             completedToday: newCompletedToday, 
             streak: newStreak, 
             lastCompletedAt: newCompletedToday ? now.getTime() : 0 
-        });
+        };
 
+        await habitRef.update(updatePayload);
         res.status(200).json({ completedToday: newCompletedToday, streak: newStreak });
     } catch (error) {
         res.status(500).json({ error: error.message });

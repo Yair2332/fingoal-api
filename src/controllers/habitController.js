@@ -128,11 +128,12 @@ exports.toggleHabit = async (req, res) => {
 
     const data = doc.data();
     const now = new Date();
-    
-    // Normalizamos la fecha de hoy a las 00:00:00 para comparar solo el día
+
+    // Solo comparamos fechas (sin horas)
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const lastCompleted = data.lastCompletedAt && data.lastCompletedAt !== 0
+    const lastCompleted =
+      data.lastCompletedAt && data.lastCompletedAt !== 0
         ? new Date(data.lastCompletedAt)
         : null;
 
@@ -145,25 +146,28 @@ exports.toggleHabit = async (req, res) => {
       : null;
 
     // ===========================
-    // MARCAR (Activar)
+    // MARCAR
     // ===========================
     if (!data.completedToday) {
       let newStreak = data.streak || 0;
 
       if (!lastCompletedDate) {
-        // Primera vez que se marca
+        // Primera vez
         newStreak = 1;
       } else {
-        const diffDays = (today - lastCompletedDate) / (1000 * 60 * 60 * 24);
+        const diffDays =
+          (today - lastCompletedDate) / (1000 * 60 * 60 * 24);
 
         if (diffDays === 1) {
-          // Ayer se completó, incrementamos
+          // Ayer también lo completó
           newStreak++;
         } else if (diffDays > 1) {
-          // Se perdió la racha, reiniciamos a 1
+          // Perdió la racha
           newStreak = 1;
         }
-        // Si diffDays === 0, ya se marcó hoy, no hacemos nada extra
+        // diffDays === 0
+        // Ya estaba completado hoy y se destildó.
+        // NO modificamos la racha.
       }
 
       await habitRef.update({
@@ -179,25 +183,15 @@ exports.toggleHabit = async (req, res) => {
     }
 
     // ===========================
-    // DESMARCAR (Desactivar)
+    // DESMARCAR
     // ===========================
-    // Si lo desmarcamos hoy, debemos decrementar la racha 
-    // siempre y cuando haya sido la racha generada por "hoy".
-    let newStreak = data.streak || 0;
-    
-    if (lastCompletedDate && lastCompletedDate.getTime() === today.getTime()) {
-        newStreak = Math.max(0, newStreak - 1);
-    }
-
     await habitRef.update({
-      completedToday: false,
-      streak: newStreak
-      // Opcional: podrías actualizar lastCompletedAt al día anterior aquí si fuera necesario
+      completedToday: false
     });
 
     return res.status(200).json({
       completedToday: false,
-      streak: newStreak
+      streak: data.streak
     });
 
   } catch (error) {
